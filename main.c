@@ -22,10 +22,61 @@ static const int starting_board[BOARD_SIZE][BOARD_SIZE] = {
     { 6, 7, 8, 9,10, 8, 7, 6 }
 };
 
+static const char *default_font_path(void)
+{
+#if defined(__linux__)
+    static const char *candidates[] = {
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        NULL
+    };
+#elif defined(__APPLE__)
+    static const char *candidates[] = {
+        "/System/Library/Fonts/Symbols.ttf",
+        "/System/Library/Fonts/Apple Symbols.ttf",
+        NULL
+    };
+#elif defined(_WIN32)
+    static const char *candidates[] = {
+        "C:/Windows/Fonts/seguisym.ttf",
+        "C:/Windows/Fonts/arial.ttf",
+        NULL
+    };
+#else
+    static const char *candidates[] = { NULL };
+#endif
+
+    for (int i = 0; candidates[i] != NULL; i++) {
+        FILE *probe = fopen(candidates[i], "rb");
+        if (probe) {
+            fclose(probe);
+            return candidates[i];
+        }
+    }
+
+    return NULL;
+}
+
 int main(int argc, char **argv)
 {
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s /path/to/font.ttf\n", argv[0]);
+    const char *font_path = NULL;
+
+    if (argc > 2) {
+        fprintf(stderr, "Usage: %s [/path/to/font.ttf]\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    if (argc == 2)
+        font_path = argv[1];
+    else
+        font_path = default_font_path();
+
+    if (!font_path) {
+        fprintf(stderr,
+                "No default chess font was found for this platform. "
+                "Pass a font explicitly: %s /path/to/font.ttf\n",
+                argv[0]);
         return EXIT_FAILURE;
     }
 
@@ -50,11 +101,12 @@ int main(int argc, char **argv)
     renderer = window ? SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED) : NULL;
     if (window && !renderer)
         renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
-    font = TTF_OpenFont(argv[1], 60);
+    font = TTF_OpenFont(font_path, 60);
 
     if (!window || !renderer || !font) {
         fprintf(stderr, "Setup failed: %s\n",
-                SDL_GetError()[0] ? SDL_GetError() : TTF_GetError());
+                !window || !renderer ? (SDL_GetError()[0] ? SDL_GetError() : "unknown SDL error")
+                                     : TTF_GetError());
         goto cleanup;
     }
 
